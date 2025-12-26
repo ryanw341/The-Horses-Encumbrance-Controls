@@ -26,6 +26,6 @@
     }
   ],
   "url": "https://github.com/ryanw341/The-Horses-Encumbrance-Controls",
-  "manifest": "https://raw.githubusercontent.com/ryanw341/The-Horses-Encumbrance-Controls/v1.0.0/module.json",
-  "download": "https://github.com/ryanw341/The-Horses-Encumbrance-Controls/archive/refs/tags/v1.0.0.zip"
+  "manifest": "https://raw.githubusercontent.com/ryanw341/The-Horses-Encumbrance-Controls/main/module.json",
+  "download": "https://github.com/ryanw341/The-Horses-Encumbrance-Controls/archive/refs/heads/main.zip"
 }

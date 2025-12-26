@@ -36,7 +36,7 @@ Configure how many coins equal one unit of weight:
 ### Method 1: Manifest URL
 1. In Foundry VTT, go to the "Add-on Modules" tab
 2. Click "Install Module"
-3. Paste the manifest URL: `https://raw.githubusercontent.com/ryanw341/The-Horses-Encumbrance-Controls/v1.0.0/module.json`
+3. Paste the manifest URL: `https://raw.githubusercontent.com/ryanw341/The-Horses-Encumbrance-Controls/main/module.json`
 4. Click "Install"
 
 ### Method 2: Manual Installation
@@ -75,8 +75,8 @@ Once installed and configured:
 
 ## Compatibility
 
-- **Foundry VTT**: v11+
-- **Verified**: v12
+- **Foundry VTT**: v12+
+- **Verified**: v13
 - **Game System**: Designed for D&D 5e (may work with compatible systems)
 
 ## Development
