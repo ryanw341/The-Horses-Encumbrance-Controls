@@ -75,8 +75,8 @@ Once installed and configured:
 
 ## Compatibility
 
-- **Foundry VTT**: v11+
-- **Verified**: v12
+- **Foundry VTT**: v12+
+- **Verified**: v13
 - **Game System**: Designed for D&D 5e (may work with compatible systems)
 
 ## Development
