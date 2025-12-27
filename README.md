@@ -30,6 +30,7 @@ Configure speed modifications for each encumbrance tier:
 Configure how many coins equal one unit of weight:
 - Default: 50 coins = 1 lb
 - Automatically calculates total currency weight from all coin types (cp, sp, ep, gp, pp)
+- Respects the D&D5e system toggles for tracking currency weight and encumbrance
 
 ## Installation
 

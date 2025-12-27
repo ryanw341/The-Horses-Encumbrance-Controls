@@ -6,6 +6,83 @@ export class EncumbranceManager {
       tier2: 'Heavily Encumbered',
       tier3: 'Exceeding Carrying Capacity'
     };
+    // Known disabled encumbrance values from historical D&D5e settings; used as a fallback
+    this.DISABLED_ENCUMBRANCE_VALUES = new Set(['disabled', 'none', 'off', 'false', '0']);
+    this.warnedMissingEncumbranceSetting = false;
+    this.warnedMissingCurrencySetting = false;
+  }
+  
+  /**
+   * Read D&D5e system settings that influence encumbrance
+   */
+  getSystemEncumbranceSettings() {
+    let tracking;
+    let trackCurrency = true;
+    
+    try {
+      tracking = game.settings.get('dnd5e', 'encumbrance');
+    } catch (err) {
+      if (!this.warnedMissingEncumbranceSetting) {
+        console.warn(`${this.MODULE_ID} | Unable to read dnd5e encumbrance setting; assuming enabled.`, err);
+        this.warnedMissingEncumbranceSetting = true;
+      }
+      tracking = undefined;
+    }
+    
+    try {
+      trackCurrency = game.settings.get('dnd5e', 'currencyWeight');
+    } catch (err) {
+      if (!this.warnedMissingCurrencySetting) {
+        console.warn(`${this.MODULE_ID} | Unable to read dnd5e currencyWeight setting; assuming currency counts toward weight.`, err);
+        this.warnedMissingCurrencySetting = true;
+      }
+      trackCurrency = true;
+    }
+    
+    return { tracking, trackCurrency };
+  }
+  
+  /**
+   * Collect possible encumbrance setting values that represent "disabled"
+   */
+  getDisabledEncumbranceValues(encumbranceSetting) {
+    const knownDisabledValues = Array.from(this.DISABLED_ENCUMBRANCE_VALUES);
+    
+    if (encumbranceSetting?.choices) {
+      return Object.keys(encumbranceSetting.choices).filter(key => knownDisabledValues.includes(String(key).toLowerCase()));
+    }
+    
+    return knownDisabledValues;
+  }
+  
+  /**
+   * Determine whether the system encumbrance setting is disabled
+   */
+  isEncumbranceDisabled(tracking) {
+    if (tracking === null || tracking === undefined) {
+      return false;
+    }
+    
+    // Access the settings registry to inspect available choice keys
+    let encumbranceSetting;
+    try {
+      encumbranceSetting = game.settings.settings.get('dnd5e.encumbrance');
+    } catch (err) {
+      encumbranceSetting = undefined;
+    }
+    
+    if (typeof tracking !== 'string' && typeof tracking !== 'number' && typeof tracking !== 'boolean') {
+      return false;
+    }
+    
+    const normalizedTracking = typeof tracking === 'string' ? tracking.toLowerCase() : String(tracking);
+    const disabledValues = this.getDisabledEncumbranceValues(encumbranceSetting);
+    
+    if (disabledValues.includes(normalizedTracking)) {
+      return true;
+    }
+    
+    return this.DISABLED_ENCUMBRANCE_VALUES.has(normalizedTracking);
   }
   
   /**
@@ -22,7 +99,7 @@ export class EncumbranceManager {
   /**
    * Calculate total weight including currency
    */
-  calculateTotalWeight(actor) {
+  calculateTotalWeight(actor, { trackCurrencyWeight = true } = {}) {
     // Get item weight
     let itemWeight = 0;
     actor.items.forEach(item => {
@@ -32,11 +109,14 @@ export class EncumbranceManager {
     });
     
     // Get currency weight
-    const currencyPerWeight = game.settings.get(this.MODULE_ID, 'currencyPerWeight');
-    const currency = actor.system?.currency || {};
-    const totalCoins = (currency.cp || 0) + (currency.sp || 0) + (currency.ep || 0) + 
-                       (currency.gp || 0) + (currency.pp || 0);
-    const currencyWeight = totalCoins / currencyPerWeight;
+    let currencyWeight = 0;
+    if (trackCurrencyWeight) {
+      const currencyPerWeight = game.settings.get(this.MODULE_ID, 'currencyPerWeight');
+      const currency = actor.system?.currency || {};
+      const totalCoins = (currency.cp || 0) + (currency.sp || 0) + (currency.ep || 0) + 
+                         (currency.gp || 0) + (currency.pp || 0);
+      currencyWeight = totalCoins / currencyPerWeight;
+    }
     
     return itemWeight + currencyWeight;
   }
@@ -44,9 +124,9 @@ export class EncumbranceManager {
   /**
    * Determine which encumbrance tier the actor is in
    */
-  getEncumbranceTier(actor) {
+  getEncumbranceTier(actor, { trackCurrencyWeight = true } = {}) {
     const strength = actor.system?.abilities?.str?.value || 10;
-    const totalWeight = this.calculateTotalWeight(actor);
+    const totalWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight });
     const multipliers = this.getTierMultipliers();
     
     const tier1Threshold = strength * multipliers.tier1;
@@ -157,6 +237,15 @@ export class EncumbranceManager {
       return;
     }
     
+    const { tracking, trackCurrency } = this.getSystemEncumbranceSettings();
+    // If the system setting cannot be read, fall back to module behavior
+    const shouldSkipEncumbrance = tracking === undefined ? false : this.isEncumbranceDisabled(tracking);
+    
+    if (shouldSkipEncumbrance) {
+      await this.removeEncumbranceEffects(actor);
+      return;
+    }
+    
     const effectsEnabled = game.settings.get(this.MODULE_ID, 'enableEffects');
     
     if (!effectsEnabled) {
@@ -166,7 +255,7 @@ export class EncumbranceManager {
     }
     
     // Get the current encumbrance tier
-    const tier = this.getEncumbranceTier(actor);
+    const tier = this.getEncumbranceTier(actor, { trackCurrencyWeight: trackCurrency });
     
     // Apply the appropriate effect
     await this.applyEncumbranceEffect(actor, tier);
