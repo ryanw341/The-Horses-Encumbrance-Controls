@@ -26,6 +26,20 @@ Hooks.on('ready', async function() {
     }
   });
   
+  // Hook before actor sheet renders to patch NaN encumbrance values
+  Hooks.on('renderActorSheet5eCharacter', (app, html, data) => {
+    if (game.encumbranceControls && app.actor) {
+      game.encumbranceControls.patchSystemEncumbrance(app.actor);
+    }
+  });
+  
+  // Also handle legacy sheet type
+  Hooks.on('renderActorSheet', (app, html, data) => {
+    if (game.encumbranceControls && app.actor && app.actor.type === 'character') {
+      game.encumbranceControls.patchSystemEncumbrance(app.actor);
+    }
+  });
+  
   // Check encumbrance for all actors on load
   if (game.encumbranceControls && game.user.isGM) {
     for (let actor of game.actors) {

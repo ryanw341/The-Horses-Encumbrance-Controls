@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.3] - Bug Fix Release
+
+### Fixed
+- Fixed NaN display for carried weight on character sheets
+  - Module now always computes total weight manually instead of relying on potentially corrupted system encumbrance value
+  - Currency weight calculation now sums all present currency keys (supports renamed/disabled currencies)
+  - System encumbrance value is automatically patched in-memory when NaN is detected
+  - Character sheets now display correct weight values without requiring per-actor data cleanup
+- Encumbrance effects and tiers continue to work correctly even when system encumbrance value is NaN
+
 ## [1.0.0] - Initial Release
 
 ### Features
