@@ -9,6 +9,7 @@ Hooks.once('init', async function() {
   
   // Initialize the encumbrance manager
   game.encumbranceControls = new EncumbranceManager();
+  game.encumbranceControls.applyCurrencyWeightConfig();
 });
 
 Hooks.on('ready', async function() {
