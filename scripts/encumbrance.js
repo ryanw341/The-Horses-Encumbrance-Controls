@@ -148,8 +148,9 @@ export class EncumbranceManager {
     
     // Sum all present currency keys, not just the standard five
     // This supports renamed/disabled currencies and prevents NaN
+    // Use Object.keys to only iterate own properties (avoid prototype pollution)
     let totalCoins = 0;
-    for (const key in currency) {
+    for (const key of Object.keys(currency)) {
       totalCoins += this.getNumeric(currency[key], 0);
     }
     
@@ -273,21 +274,24 @@ export class EncumbranceManager {
       return;
     }
 
-    const systemValue = this.getNumeric(encumbrance.value, NaN);
+    // Check if the system value is NaN or not a finite number
+    const systemValue = encumbrance.value;
+    if (systemValue !== undefined && systemValue !== null && Number.isFinite(Number(systemValue))) {
+      // System value is valid, no need to patch
+      return;
+    }
     
-    // Only patch if the system value is NaN
-    if (!Number.isFinite(systemValue)) {
-      const { trackCurrency } = this.getSystemEncumbranceSettings();
-      const computedWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
-      
-      // Patch the value in-memory (doesn't persist to database)
-      encumbrance.value = computedWeight;
-      
-      // Also compute and patch pct if max is available
-      const max = this.getNumeric(encumbrance.max, 0);
-      if (max > 0) {
-        encumbrance.pct = Math.round((computedWeight / max) * 100);
-      }
+    // System value is NaN, undefined, null, or not finite - patch it
+    const { trackCurrency } = this.getSystemEncumbranceSettings();
+    const computedWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
+    
+    // Patch the value in-memory (doesn't persist to database)
+    encumbrance.value = computedWeight;
+    
+    // Also compute and patch pct if max is available
+    const max = this.getNumeric(encumbrance.max, 0);
+    if (max > 0) {
+      encumbrance.pct = Math.round((computedWeight / max) * 100);
     }
   }
 
