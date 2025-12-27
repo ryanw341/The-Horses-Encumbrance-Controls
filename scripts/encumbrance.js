@@ -119,27 +119,10 @@ export class EncumbranceManager {
   }
   
   /**
-   * Calculate total weight including currency, preferring the system-derived encumbrance value when available
+   * Calculate total weight including currency, always computing manually
    */
   calculateTotalWeight(actor, { trackCurrencyWeight = true } = {}) {
-    const encumbranceValue = actor.system?.attributes?.encumbrance?.value;
-
-    if (encumbranceValue !== undefined && encumbranceValue !== null) {
-      const totalEncumbrance = this.getNumeric(encumbranceValue, NaN);
-      const { trackCurrency } = this.getSystemEncumbranceSettings();
-
-      // Only trust the system value if it's a finite number
-      if (Number.isFinite(totalEncumbrance)) {
-        if (!trackCurrencyWeight && trackCurrency) {
-          // The caller asked to ignore currency weight even though the system includes it, so subtract it here
-          return totalEncumbrance - this.calculateCurrencyWeight(actor);
-        }
-        return totalEncumbrance;
-      }
-      // Fall back to manual calculation when system encumbrance value is NaN (indicates corrupted item data)
-    }
-
-    // Manual calculation fallback
+    // Always compute weight manually to avoid NaN from system value
     let itemWeight = 0;
     actor.items.forEach(item => {
       const weight = this.getNumeric(item.system?.weight, 0);     // blank/undefined -> 0
@@ -157,13 +140,19 @@ export class EncumbranceManager {
   
   /**
    * Calculate only the currency weight using the configured coins-per-weight ratio
+   * Sums all present currency keys to support renamed/disabled currencies
    */
   calculateCurrencyWeight(actor) {
     const currencyPerWeight = Math.max(this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50), 1);
     const currency = actor.system?.currency || {};
-    const totalCoins = this.getNumeric(currency.cp) + this.getNumeric(currency.sp) + 
-                       this.getNumeric(currency.ep) + this.getNumeric(currency.gp) + 
-                       this.getNumeric(currency.pp);
+    
+    // Sum all present currency keys, not just the standard five
+    // This supports renamed/disabled currencies and prevents NaN
+    let totalCoins = 0;
+    for (const key in currency) {
+      totalCoins += this.getNumeric(currency[key], 0);
+    }
+    
     return totalCoins / currencyPerWeight;
   }
   
@@ -275,6 +264,34 @@ export class EncumbranceManager {
   }
   
   /**
+   * Patch the system encumbrance value in-memory if it's NaN
+   * This ensures the character sheet displays a number instead of NaN
+   */
+  patchSystemEncumbrance(actor) {
+    const encumbrance = actor.system?.attributes?.encumbrance;
+    if (!encumbrance) {
+      return;
+    }
+
+    const systemValue = this.getNumeric(encumbrance.value, NaN);
+    
+    // Only patch if the system value is NaN
+    if (!Number.isFinite(systemValue)) {
+      const { trackCurrency } = this.getSystemEncumbranceSettings();
+      const computedWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
+      
+      // Patch the value in-memory (doesn't persist to database)
+      encumbrance.value = computedWeight;
+      
+      // Also compute and patch pct if max is available
+      const max = this.getNumeric(encumbrance.max, 0);
+      if (max > 0) {
+        encumbrance.pct = Math.round((computedWeight / max) * 100);
+      }
+    }
+  }
+
+  /**
    * Check and update encumbrance for an actor
    */
   async checkEncumbrance(actor) {
@@ -282,6 +299,9 @@ export class EncumbranceManager {
     if (actor.type !== 'character') {
       return;
     }
+    
+    // Patch system encumbrance if it's NaN before doing anything else
+    this.patchSystemEncumbrance(actor);
     
     const { tracking, trackCurrency } = this.getSystemEncumbranceSettings();
     // If the system setting cannot be read, fall back to module behavior
