@@ -123,30 +123,35 @@ export class EncumbranceManager {
    */
   calculateTotalWeight(actor, { trackCurrencyWeight = true } = {}) {
     const encumbranceValue = actor.system?.attributes?.encumbrance?.value;
+
     if (encumbranceValue !== undefined && encumbranceValue !== null) {
-      const totalEncumbrance = this.getNumeric(encumbranceValue, 0);
+      const totalEncumbrance = this.getNumeric(encumbranceValue, NaN);
       const { trackCurrency } = this.getSystemEncumbranceSettings();
-      if (!trackCurrencyWeight && trackCurrency) {
-        // The caller asked to ignore currency weight even though the system includes it, so subtract it here
-        return totalEncumbrance - this.calculateCurrencyWeight(actor);
+
+      // Only trust the system value if it's a finite number
+      if (Number.isFinite(totalEncumbrance)) {
+        if (!trackCurrencyWeight && trackCurrency) {
+          // The caller asked to ignore currency weight even though the system includes it, so subtract it here
+          return totalEncumbrance - this.calculateCurrencyWeight(actor);
+        }
+        return totalEncumbrance;
       }
-      return totalEncumbrance;
+      // Fall back to manual calculation when system encumbrance value is NaN (indicates corrupted item data)
     }
-    
-    // Get item weight
+
+    // Manual calculation fallback
     let itemWeight = 0;
     actor.items.forEach(item => {
-      const weight = this.getNumeric(item.system?.weight, 0);
-      const quantity = this.getNumeric(item.system?.quantity, 1);
+      const weight = this.getNumeric(item.system?.weight, 0);     // blank/undefined -> 0
+      const quantity = this.getNumeric(item.system?.quantity, 1); // blank/undefined -> 1
       itemWeight += weight * quantity;
     });
-    
-    // Get currency weight
+
     let currencyWeight = 0;
     if (trackCurrencyWeight) {
       currencyWeight = this.calculateCurrencyWeight(actor);
     }
-    
+
     return itemWeight + currencyWeight;
   }
   
