@@ -17,7 +17,7 @@ export class EncumbranceManager {
    */
   applyCurrencyWeightConfig() {
     try {
-      const currencyPerWeight = this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50);
+      const currencyPerWeight = Math.max(this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50), 1);
       if (CONFIG?.DND5E?.encumbrance) {
         CONFIG.DND5E.encumbrance.currencyPerWeight = currencyPerWeight;
       }
@@ -27,7 +27,7 @@ export class EncumbranceManager {
   }
   
   /**
-   * Safely coerce values (including embedded objects) to numbers
+   * Safely coerce values (including embedded objects with a `value` property, as used by D&D5e system data) to numbers
    */
   getNumeric(value, defaultValue = 0) {
     const numericValue = Number(typeof value === 'object' ? value?.value : value);
@@ -119,35 +119,47 @@ export class EncumbranceManager {
   }
   
   /**
-   * Calculate total weight including currency
+   * Calculate total weight including currency, preferring the system-derived encumbrance value when available
    */
   calculateTotalWeight(actor, { trackCurrencyWeight = true } = {}) {
     const encumbranceValue = actor.system?.attributes?.encumbrance?.value;
     if (encumbranceValue !== undefined && encumbranceValue !== null) {
-      return this.getNumeric(encumbranceValue, 0);
+      const totalEncumbrance = this.getNumeric(encumbranceValue, 0);
+      const { trackCurrency } = this.getSystemEncumbranceSettings();
+      if (!trackCurrencyWeight && trackCurrency) {
+        // The caller asked to ignore currency weight even though the system includes it, so subtract it here
+        return totalEncumbrance - this.calculateCurrencyWeight(actor);
+      }
+      return totalEncumbrance;
     }
     
     // Get item weight
     let itemWeight = 0;
     actor.items.forEach(item => {
-      const weight = this.getNumeric(item.system?.weight ?? item.system?.weight?.value, 0);
-      const quantity = this.getNumeric(item.system?.quantity ?? item.system?.quantity?.value, 1);
+      const weight = this.getNumeric(item.system?.weight, 0);
+      const quantity = this.getNumeric(item.system?.quantity, 1);
       itemWeight += weight * quantity;
     });
     
     // Get currency weight
     let currencyWeight = 0;
     if (trackCurrencyWeight) {
-      const currencyPerWeight = this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50) || 50;
-      const currency = actor.system?.currency || {};
-      const totalCoins = this.getNumeric(currency.cp) + this.getNumeric(currency.sp) + 
-                         this.getNumeric(currency.ep) + this.getNumeric(currency.gp) + 
-                         this.getNumeric(currency.pp);
-      const divisor = currencyPerWeight > 0 ? currencyPerWeight : 50;
-      currencyWeight = totalCoins / divisor;
+      currencyWeight = this.calculateCurrencyWeight(actor);
     }
     
     return itemWeight + currencyWeight;
+  }
+  
+  /**
+   * Calculate only the currency weight using the configured coins-per-weight ratio
+   */
+  calculateCurrencyWeight(actor) {
+    const currencyPerWeight = Math.max(this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50), 1);
+    const currency = actor.system?.currency || {};
+    const totalCoins = this.getNumeric(currency.cp) + this.getNumeric(currency.sp) + 
+                       this.getNumeric(currency.ep) + this.getNumeric(currency.gp) + 
+                       this.getNumeric(currency.pp);
+    return totalCoins / currencyPerWeight;
   }
   
   /**
