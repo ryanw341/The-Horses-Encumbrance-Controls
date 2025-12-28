@@ -341,5 +341,15 @@ export class EncumbranceManager {
     
     // Apply the appropriate effect
     await this.applyEncumbranceEffect(actor, tier);
+    
+    // Reassert encumbrance value and pct after applying effects
+    // This prevents the D&D5e system from overwriting with NaN during tier transitions
+    if (encumbrance) {
+      encumbrance.value = Number.isFinite(totalWeight) ? totalWeight : 0;
+      const max = this.getNumeric(encumbrance.max, 0);
+      if (Number.isFinite(max) && max > 0 && Number.isFinite(totalWeight)) {
+        encumbrance.pct = Math.round((totalWeight / max) * 100);
+      }
+    }
   }
 }
