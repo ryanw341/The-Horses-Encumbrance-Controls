@@ -51,23 +51,26 @@ export class EncumbranceManager {
     const weight = item.system.weight;
     const weightValue = this.getNumeric(weight, 0);
     
-    // Check if weight needs sanitization
+    // Check if weight needs sanitization by comparing sanitized value to original
     if (typeof weight === 'object' && weight !== null) {
-      // If it's an object with value property, check if value is not a finite number
-      if (!Number.isFinite(Number(weight.value))) {
+      // If it's an object with value property, check if value differs from sanitized
+      const originalValue = weight.value;
+      if (originalValue !== weightValue && !Number.isFinite(Number(originalValue))) {
         updates['system.weight.value'] = weightValue;
         needsUpdate = true;
       }
-    } else if (!Number.isFinite(Number(weight))) {
-      // If it's a simple value that's not finite
-      updates['system.weight'] = weightValue;
-      needsUpdate = true;
+    } else {
+      // If it's a simple value, check if it differs from sanitized
+      if (weight !== weightValue && !Number.isFinite(Number(weight))) {
+        updates['system.weight'] = weightValue;
+        needsUpdate = true;
+      }
     }
     
-    // Sanitize quantity
+    // Sanitize quantity - compare sanitized value to original
     const quantity = item.system.quantity;
     const quantityValue = this.getNumeric(quantity, 1);
-    if (!Number.isFinite(Number(quantity))) {
+    if (quantity !== quantityValue && !Number.isFinite(Number(quantity))) {
       updates['system.quantity'] = quantityValue;
       needsUpdate = true;
     }
@@ -126,7 +129,8 @@ export class EncumbranceManager {
       const value = currencyData[key];
       const sanitizedValue = this.getNumeric(value, 0);
       
-      if (!Number.isFinite(Number(value))) {
+      // Only update if the value differs from sanitized and is not finite
+      if (value !== sanitizedValue && !Number.isFinite(Number(value))) {
         updates[`system.currency.${key}`] = sanitizedValue;
         needsUpdate = true;
       }
