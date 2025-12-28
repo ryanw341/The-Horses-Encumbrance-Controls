@@ -460,6 +460,12 @@ export class EncumbranceManager {
       this.pendingReasserts.delete(actorId);
     }
     
+    // Helper function to get a fresh encumbrance reference
+    const getFreshEncumbrance = () => {
+      const freshActor = game.actors.get(actorId);
+      return freshActor?.system?.attributes?.encumbrance;
+    };
+    
     // Set immediately
     this.setEncumbranceValues(encumbrance, totalWeight);
     
@@ -472,7 +478,10 @@ export class EncumbranceManager {
     if (typeof queueMicrotask !== 'undefined') {
       queueMicrotask(() => {
         if (!pending.cancelled) {
-          this.setEncumbranceValues(encumbrance, totalWeight);
+          const freshEncumbrance = getFreshEncumbrance();
+          if (freshEncumbrance) {
+            this.setEncumbranceValues(freshEncumbrance, totalWeight);
+          }
         }
       });
     }
@@ -481,7 +490,10 @@ export class EncumbranceManager {
     if (typeof requestAnimationFrame !== 'undefined') {
       pending.animationFrameId = requestAnimationFrame(() => {
         if (!pending.cancelled) {
-          this.setEncumbranceValues(encumbrance, totalWeight);
+          const freshEncumbrance = getFreshEncumbrance();
+          if (freshEncumbrance) {
+            this.setEncumbranceValues(freshEncumbrance, totalWeight);
+          }
         }
       });
     }
@@ -489,14 +501,20 @@ export class EncumbranceManager {
     // Short timeout - runs in next event loop tick
     pending.shortTimeoutId = setTimeout(() => {
       if (!pending.cancelled) {
-        this.setEncumbranceValues(encumbrance, totalWeight);
+        const freshEncumbrance = getFreshEncumbrance();
+        if (freshEncumbrance) {
+          this.setEncumbranceValues(freshEncumbrance, totalWeight);
+        }
       }
     }, 0);
     
     // Longer timeout - final insurance against late system recalculations
     pending.finalTimeoutId = setTimeout(() => {
       if (!pending.cancelled) {
-        this.setEncumbranceValues(encumbrance, totalWeight);
+        const freshEncumbrance = getFreshEncumbrance();
+        if (freshEncumbrance) {
+          this.setEncumbranceValues(freshEncumbrance, totalWeight);
+        }
       }
       // Always clean up the Map entry, even if cancelled
       this.pendingReasserts.delete(actorId);
