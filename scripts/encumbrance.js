@@ -363,6 +363,7 @@ export class EncumbranceManager {
       if (!pending.cancelled) {
         this.setEncumbranceValues(encumbrance, totalWeight);
       }
+      // Always clean up the Map entry, even if cancelled
       this.pendingReasserts.delete(actorId);
     }, this.FINAL_REASSERT_DELAY_MS);
   }
