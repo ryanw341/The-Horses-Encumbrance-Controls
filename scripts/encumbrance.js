@@ -310,6 +310,8 @@ export class EncumbranceManager {
     const actorId = actor.id;
     if (this.pendingReasserts.has(actorId)) {
       const pending = this.pendingReasserts.get(actorId);
+      // Mark as cancelled so callbacks can check
+      pending.cancelled = true;
       if (pending.animationFrameId) {
         cancelAnimationFrame(pending.animationFrameId);
       }
@@ -319,39 +321,50 @@ export class EncumbranceManager {
       if (pending.finalTimeoutId) {
         clearTimeout(pending.finalTimeoutId);
       }
+      // Remove the stale entry
+      this.pendingReasserts.delete(actorId);
     }
     
     // Set immediately
     this.setEncumbranceValues(encumbrance, totalWeight);
     
     // Store references to pending operations
-    const pending = {};
+    const pending = { cancelled: false };
+    this.pendingReasserts.set(actorId, pending);
     
     // Microtask - runs after current synchronous code, before next event loop
+    // Note: microtasks cannot be cancelled, so we check the cancelled flag
     if (typeof queueMicrotask !== 'undefined') {
-      queueMicrotask(() => this.setEncumbranceValues(encumbrance, totalWeight));
+      queueMicrotask(() => {
+        if (!pending.cancelled) {
+          this.setEncumbranceValues(encumbrance, totalWeight);
+        }
+      });
     }
     
     // Animation frame - runs before next repaint
     if (typeof requestAnimationFrame !== 'undefined') {
       pending.animationFrameId = requestAnimationFrame(() => {
-        this.setEncumbranceValues(encumbrance, totalWeight);
+        if (!pending.cancelled) {
+          this.setEncumbranceValues(encumbrance, totalWeight);
+        }
       });
     }
     
     // Short timeout - runs in next event loop tick
     pending.shortTimeoutId = setTimeout(() => {
-      this.setEncumbranceValues(encumbrance, totalWeight);
+      if (!pending.cancelled) {
+        this.setEncumbranceValues(encumbrance, totalWeight);
+      }
     }, 0);
     
     // Longer timeout - final insurance against late system recalculations
     pending.finalTimeoutId = setTimeout(() => {
-      this.setEncumbranceValues(encumbrance, totalWeight);
+      if (!pending.cancelled) {
+        this.setEncumbranceValues(encumbrance, totalWeight);
+      }
       this.pendingReasserts.delete(actorId);
     }, this.FINAL_REASSERT_DELAY_MS);
-    
-    // Store pending operations for potential cancellation
-    this.pendingReasserts.set(actorId, pending);
   }
 
   /**
