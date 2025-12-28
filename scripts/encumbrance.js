@@ -304,10 +304,21 @@ export class EncumbranceManager {
       return;
     }
     
-    // Patch system encumbrance if it's NaN before doing anything else
-    this.patchSystemEncumbrance(actor);
-    
     const { tracking, trackCurrency } = this.getSystemEncumbranceSettings();
+    
+    // Always compute and set the system encumbrance value to eliminate transient NaN
+    const totalWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
+    const encumbrance = actor.system?.attributes?.encumbrance;
+    if (encumbrance) {
+      encumbrance.value = totalWeight;
+      
+      // Also update pct when max is available and finite
+      const max = this.getNumeric(encumbrance.max, 0);
+      if (Number.isFinite(max) && max > 0) {
+        encumbrance.pct = Math.round((totalWeight / max) * 100);
+      }
+    }
+    
     // If the system setting cannot be read, fall back to module behavior
     const shouldSkipEncumbrance = tracking === undefined ? false : this.isEncumbranceDisabled(tracking);
     
