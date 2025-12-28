@@ -285,6 +285,39 @@ export class EncumbranceManager {
   }
 
   /**
+   * Set encumbrance values with multiple delayed reasserts to override system recalculations
+   * The D&D5e system recalculates encumbrance asynchronously after effects are applied,
+   * which can overwrite our computed values with NaN. We schedule multiple reasserts
+   * at different phases (microtask, animation frame, timeouts) to ensure our value persists.
+   * @param {Object} encumbrance - The actor's encumbrance object
+   * @param {Number} totalWeight - The computed total weight
+   */
+  setEncumbranceValuesWithDelayedReasserts(encumbrance, totalWeight) {
+    if (!encumbrance) {
+      return;
+    }
+    
+    // Set immediately
+    this.setEncumbranceValues(encumbrance, totalWeight);
+    
+    // Microtask - runs after current synchronous code, before next event loop
+    if (typeof queueMicrotask !== 'undefined') {
+      queueMicrotask(() => this.setEncumbranceValues(encumbrance, totalWeight));
+    }
+    
+    // Animation frame - runs before next repaint
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => this.setEncumbranceValues(encumbrance, totalWeight));
+    }
+    
+    // Short timeout - runs in next event loop tick
+    setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
+    
+    // Longer timeout - final insurance against late system recalculations
+    setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 100);
+  }
+
+  /**
    * Patch the system encumbrance value in-memory if it's NaN
    * This ensures the character sheet displays a number instead of NaN
    */
@@ -332,8 +365,8 @@ export class EncumbranceManager {
     
     if (shouldSkipEncumbrance) {
       await this.removeEncumbranceEffects(actor);
-      // Delayed override to prevent late system NaN
-      setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
+      // Use delayed reasserts to override late system NaN
+      this.setEncumbranceValuesWithDelayedReasserts(encumbrance, totalWeight);
       return;
     }
     
@@ -342,8 +375,8 @@ export class EncumbranceManager {
     if (!effectsEnabled) {
       // Remove any existing encumbrance effects if effects are disabled
       await this.removeEncumbranceEffects(actor);
-      // Delayed override to prevent late system NaN
-      setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
+      // Use delayed reasserts to override late system NaN
+      this.setEncumbranceValuesWithDelayedReasserts(encumbrance, totalWeight);
       return;
     }
     
@@ -355,10 +388,7 @@ export class EncumbranceManager {
     
     // Reassert encumbrance value and pct after applying effects
     // This prevents the D&D5e system from overwriting with NaN during tier transitions
-    this.setEncumbranceValues(encumbrance, totalWeight);
-    
-    // Delayed override to prevent late system NaN
-    // This ensures our computed value is the last one set, overriding any system recalculations
-    setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
+    // Use multiple delayed reasserts to ensure our value persists through all system recalculations
+    this.setEncumbranceValuesWithDelayedReasserts(encumbrance, totalWeight);
   }
 }
