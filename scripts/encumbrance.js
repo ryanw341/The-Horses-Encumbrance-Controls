@@ -10,6 +10,14 @@ export class EncumbranceManager {
     this.DISABLED_ENCUMBRANCE_VALUES = new Set(['disabled', 'none', 'off', 'false', '0']);
     this.warnedMissingEncumbranceSetting = false;
     this.warnedMissingCurrencySetting = false;
+    
+    // Final timeout delay (ms) for overriding late system encumbrance recalculations
+    // This delay must be long enough to occur after D&D5e system's async recalculations
+    // which happen in microtasks, animation frames, and short timeouts
+    this.FINAL_REASSERT_DELAY_MS = 100;
+    
+    // Track pending reassert operations for cleanup
+    this.pendingReasserts = new Map();
   }
   
   /**
@@ -285,6 +293,82 @@ export class EncumbranceManager {
   }
 
   /**
+   * Set encumbrance values with multiple delayed reasserts to override system recalculations
+   * The D&D5e system recalculates encumbrance asynchronously after effects are applied,
+   * which can overwrite our computed values with NaN. We schedule multiple reasserts
+   * at different phases (microtask, animation frame, timeouts) to ensure our value persists.
+   * @param {Actor} actor - The actor whose encumbrance is being updated
+   * @param {Object} encumbrance - The actor's encumbrance object
+   * @param {Number} totalWeight - The computed total weight
+   */
+  setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight) {
+    if (!encumbrance || !actor) {
+      return;
+    }
+    
+    // Cancel any pending reasserts for this actor to avoid redundant operations
+    const actorId = actor.id;
+    if (this.pendingReasserts.has(actorId)) {
+      const pending = this.pendingReasserts.get(actorId);
+      // Mark as cancelled so callbacks can check
+      pending.cancelled = true;
+      if (pending.animationFrameId) {
+        cancelAnimationFrame(pending.animationFrameId);
+      }
+      if (pending.shortTimeoutId) {
+        clearTimeout(pending.shortTimeoutId);
+      }
+      if (pending.finalTimeoutId) {
+        clearTimeout(pending.finalTimeoutId);
+      }
+      // Remove the stale entry
+      this.pendingReasserts.delete(actorId);
+    }
+    
+    // Set immediately
+    this.setEncumbranceValues(encumbrance, totalWeight);
+    
+    // Store references to pending operations
+    const pending = { cancelled: false };
+    this.pendingReasserts.set(actorId, pending);
+    
+    // Microtask - runs after current synchronous code, before next event loop
+    // Note: microtasks cannot be cancelled, so we check the cancelled flag
+    if (typeof queueMicrotask !== 'undefined') {
+      queueMicrotask(() => {
+        if (!pending.cancelled) {
+          this.setEncumbranceValues(encumbrance, totalWeight);
+        }
+      });
+    }
+    
+    // Animation frame - runs before next repaint
+    if (typeof requestAnimationFrame !== 'undefined') {
+      pending.animationFrameId = requestAnimationFrame(() => {
+        if (!pending.cancelled) {
+          this.setEncumbranceValues(encumbrance, totalWeight);
+        }
+      });
+    }
+    
+    // Short timeout - runs in next event loop tick
+    pending.shortTimeoutId = setTimeout(() => {
+      if (!pending.cancelled) {
+        this.setEncumbranceValues(encumbrance, totalWeight);
+      }
+    }, 0);
+    
+    // Longer timeout - final insurance against late system recalculations
+    pending.finalTimeoutId = setTimeout(() => {
+      if (!pending.cancelled) {
+        this.setEncumbranceValues(encumbrance, totalWeight);
+      }
+      // Always clean up the Map entry, even if cancelled
+      this.pendingReasserts.delete(actorId);
+    }, this.FINAL_REASSERT_DELAY_MS);
+  }
+
+  /**
    * Patch the system encumbrance value in-memory if it's NaN
    * This ensures the character sheet displays a number instead of NaN
    */
@@ -332,8 +416,8 @@ export class EncumbranceManager {
     
     if (shouldSkipEncumbrance) {
       await this.removeEncumbranceEffects(actor);
-      // Delayed override to prevent late system NaN
-      setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
+      // Use delayed reasserts to override late system NaN
+      this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight);
       return;
     }
     
@@ -342,8 +426,8 @@ export class EncumbranceManager {
     if (!effectsEnabled) {
       // Remove any existing encumbrance effects if effects are disabled
       await this.removeEncumbranceEffects(actor);
-      // Delayed override to prevent late system NaN
-      setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
+      // Use delayed reasserts to override late system NaN
+      this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight);
       return;
     }
     
@@ -355,10 +439,7 @@ export class EncumbranceManager {
     
     // Reassert encumbrance value and pct after applying effects
     // This prevents the D&D5e system from overwriting with NaN during tier transitions
-    this.setEncumbranceValues(encumbrance, totalWeight);
-    
-    // Delayed override to prevent late system NaN
-    // This ensures our computed value is the last one set, overriding any system recalculations
-    setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
+    // Use multiple delayed reasserts to ensure our value persists through all system recalculations
+    this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight);
   }
 }
