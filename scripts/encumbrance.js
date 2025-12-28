@@ -35,6 +35,141 @@ export class EncumbranceManager {
   }
   
   /**
+   * Sanitize item weight and quantity to prevent NaN propagation
+   * @param {Item} item - The item to sanitize
+   * @returns {boolean} - True if the item was modified
+   */
+  async sanitizeItemData(item) {
+    if (!item?.system) {
+      return false;
+    }
+    
+    let needsUpdate = false;
+    const updates = {};
+    
+    // Sanitize weight - handle both simple numbers and object with value property
+    const weight = item.system.weight;
+    const weightValue = this.getNumeric(weight, 0);
+    
+    // Check if weight needs sanitization by comparing sanitized value to original
+    if (typeof weight === 'object' && weight !== null) {
+      // If it's an object with value property, check if value differs from sanitized
+      const originalValue = weight.value;
+      if (originalValue !== weightValue && !Number.isFinite(Number(originalValue))) {
+        updates['system.weight.value'] = weightValue;
+        needsUpdate = true;
+      }
+    } else {
+      // If it's a simple value, check if it differs from sanitized
+      if (weight !== weightValue && !Number.isFinite(Number(weight))) {
+        updates['system.weight'] = weightValue;
+        needsUpdate = true;
+      }
+    }
+    
+    // Sanitize quantity - compare sanitized value to original
+    const quantity = item.system.quantity;
+    const quantityValue = this.getNumeric(quantity, 1);
+    if (quantity !== quantityValue && !Number.isFinite(Number(quantity))) {
+      updates['system.quantity'] = quantityValue;
+      needsUpdate = true;
+    }
+    
+    // Apply updates if needed
+    if (needsUpdate) {
+      try {
+        await item.update(updates);
+        return true;
+      } catch (err) {
+        console.warn(`${this.MODULE_ID} | Failed to sanitize item ${item.name}:`, err);
+        return false;
+      }
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Sanitize all items for a given actor to prevent NaN propagation
+   * @param {Actor} actor - The actor whose items should be sanitized
+   */
+  async sanitizeActorItems(actor) {
+    if (!actor?.items || actor.type !== 'character') {
+      return;
+    }
+    
+    let sanitizedCount = 0;
+    for (const item of actor.items) {
+      const wasSanitized = await this.sanitizeItemData(item);
+      if (wasSanitized) {
+        sanitizedCount++;
+      }
+    }
+    
+    if (sanitizedCount > 0) {
+      console.log(`${this.MODULE_ID} | Sanitized ${sanitizedCount} items for actor ${actor.name}`);
+    }
+  }
+  
+  /**
+   * Sanitize actor currency data to prevent NaN propagation
+   * @param {Actor} actor - The actor whose currency should be sanitized
+   * @param {Object} currencyData - The currency data from the update
+   */
+  async sanitizeActorCurrency(actor, currencyData) {
+    if (!actor?.system?.currency || actor.type !== 'character') {
+      return;
+    }
+    
+    let needsUpdate = false;
+    const updates = {};
+    
+    // Check each currency key in the update data
+    for (const key of Object.keys(currencyData)) {
+      const value = currencyData[key];
+      const sanitizedValue = this.getNumeric(value, 0);
+      
+      // Only update if the value differs from sanitized and is not finite
+      if (value !== sanitizedValue && !Number.isFinite(Number(value))) {
+        updates[`system.currency.${key}`] = sanitizedValue;
+        needsUpdate = true;
+      }
+    }
+    
+    // Apply updates if needed
+    if (needsUpdate) {
+      try {
+        await actor.update(updates);
+        console.log(`${this.MODULE_ID} | Sanitized currency for actor ${actor.name}`);
+      } catch (err) {
+        console.warn(`${this.MODULE_ID} | Failed to sanitize currency for actor ${actor.name}:`, err);
+      }
+    }
+  }
+  
+  /**
+   * Perform a one-time sanitization pass on all character actors
+   * Called once on the 'ready' hook
+   */
+  async performInitialSanitization() {
+    if (!game.user.isGM) {
+      return; // Only GM should perform this operation
+    }
+    
+    console.log(`${this.MODULE_ID} | Performing initial sanitization pass...`);
+    let actorCount = 0;
+    
+    for (const actor of game.actors) {
+      if (actor.type === 'character') {
+        await this.sanitizeActorItems(actor);
+        actorCount++;
+      }
+    }
+    
+    console.log(`${this.MODULE_ID} | Initial sanitization complete. Processed ${actorCount} character(s).`);
+  }
+  
+  /**
    * Safely coerce values (including embedded objects with a `value` property, as used by D&D5e system data) to numbers
    */
   getNumeric(value, defaultValue = 0) {
@@ -212,7 +347,7 @@ export class EncumbranceManager {
     
     return {
       name: effectName,
-      icon: 'icons/svg/downgrade.svg',
+      icon: 'icons/svg/anchor.svg',
       origin: `Actor.${this.MODULE_ID}`,
       disabled: false,
       duration: {},
