@@ -204,7 +204,7 @@ export class EncumbranceManager {
     
     return {
       name: effectName,
-      icon: 'icons/svg/weight.svg',
+      icon: 'icons/svg/downgrade.svg',
       origin: `Actor.${this.MODULE_ID}`,
       disabled: false,
       duration: {},
@@ -332,6 +332,8 @@ export class EncumbranceManager {
     
     if (shouldSkipEncumbrance) {
       await this.removeEncumbranceEffects(actor);
+      // Microtask override to prevent late system NaN
+      setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
       return;
     }
     
@@ -340,6 +342,8 @@ export class EncumbranceManager {
     if (!effectsEnabled) {
       // Remove any existing encumbrance effects if effects are disabled
       await this.removeEncumbranceEffects(actor);
+      // Microtask override to prevent late system NaN
+      setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
       return;
     }
     
@@ -352,5 +356,9 @@ export class EncumbranceManager {
     // Reassert encumbrance value and pct after applying effects
     // This prevents the D&D5e system from overwriting with NaN during tier transitions
     this.setEncumbranceValues(encumbrance, totalWeight);
+    
+    // Microtask override to prevent late system NaN
+    // This ensures our computed value is the last one set, overriding any system recalculations
+    setTimeout(() => this.setEncumbranceValues(encumbrance, totalWeight), 0);
   }
 }

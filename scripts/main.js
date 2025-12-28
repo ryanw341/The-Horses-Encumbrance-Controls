@@ -26,6 +26,25 @@ Hooks.on('ready', async function() {
     }
   });
   
+  // Hook into item create/update/delete to manage encumbrance effects
+  Hooks.on('createItem', (item, options, userId) => {
+    if (game.encumbranceControls && item.parent && item.parent.type === 'character') {
+      game.encumbranceControls.checkEncumbrance(item.parent);
+    }
+  });
+  
+  Hooks.on('updateItem', (item, data, options, userId) => {
+    if (game.encumbranceControls && item.parent && item.parent.type === 'character') {
+      game.encumbranceControls.checkEncumbrance(item.parent);
+    }
+  });
+  
+  Hooks.on('deleteItem', (item, options, userId) => {
+    if (game.encumbranceControls && item.parent && item.parent.type === 'character') {
+      game.encumbranceControls.checkEncumbrance(item.parent);
+    }
+  });
+  
   // Hook before actor sheet renders to patch NaN encumbrance values
   Hooks.on('renderActorSheet5eCharacter', (app, html, data) => {
     if (game.encumbranceControls && app.actor) {
