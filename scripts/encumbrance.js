@@ -265,6 +265,26 @@ export class EncumbranceManager {
   }
   
   /**
+   * Set encumbrance value and percentage on the actor's encumbrance object
+   * @param {Object} encumbrance - The actor's encumbrance object
+   * @param {Number} totalWeight - The computed total weight
+   */
+  setEncumbranceValues(encumbrance, totalWeight) {
+    if (!encumbrance) {
+      return;
+    }
+    
+    // Ensure totalWeight is finite before assigning (defensive programming)
+    encumbrance.value = Number.isFinite(totalWeight) ? totalWeight : 0;
+    
+    // Also update pct when max is available and finite
+    const max = this.getNumeric(encumbrance.max, 0);
+    if (Number.isFinite(max) && max > 0 && Number.isFinite(totalWeight)) {
+      encumbrance.pct = Math.round((totalWeight / max) * 100);
+    }
+  }
+
+  /**
    * Patch the system encumbrance value in-memory if it's NaN
    * This ensures the character sheet displays a number instead of NaN
    */
@@ -285,14 +305,8 @@ export class EncumbranceManager {
     const { trackCurrency } = this.getSystemEncumbranceSettings();
     const computedWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
     
-    // Patch the value in-memory (doesn't persist to database)
-    encumbrance.value = computedWeight;
-    
-    // Also compute and patch pct if max is available
-    const max = this.getNumeric(encumbrance.max, 0);
-    if (max > 0) {
-      encumbrance.pct = Math.round((computedWeight / max) * 100);
-    }
+    // Use the helper method to set values
+    this.setEncumbranceValues(encumbrance, computedWeight);
   }
 
   /**
@@ -309,16 +323,9 @@ export class EncumbranceManager {
     // Always compute and set the system encumbrance value to eliminate transient NaN
     const totalWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
     const encumbrance = actor.system?.attributes?.encumbrance;
-    if (encumbrance) {
-      // Ensure totalWeight is finite before assigning (defensive programming)
-      encumbrance.value = Number.isFinite(totalWeight) ? totalWeight : 0;
-      
-      // Also update pct when max is available and finite
-      const max = this.getNumeric(encumbrance.max, 0);
-      if (Number.isFinite(max) && max > 0 && Number.isFinite(totalWeight)) {
-        encumbrance.pct = Math.round((totalWeight / max) * 100);
-      }
-    }
+    
+    // Set encumbrance values before applying effects
+    this.setEncumbranceValues(encumbrance, totalWeight);
     
     // If the system setting cannot be read, fall back to module behavior
     const shouldSkipEncumbrance = tracking === undefined ? false : this.isEncumbranceDisabled(tracking);
@@ -344,12 +351,6 @@ export class EncumbranceManager {
     
     // Reassert encumbrance value and pct after applying effects
     // This prevents the D&D5e system from overwriting with NaN during tier transitions
-    if (encumbrance) {
-      encumbrance.value = Number.isFinite(totalWeight) ? totalWeight : 0;
-      const max = this.getNumeric(encumbrance.max, 0);
-      if (Number.isFinite(max) && max > 0 && Number.isFinite(totalWeight)) {
-        encumbrance.pct = Math.round((totalWeight / max) * 100);
-      }
-    }
+    this.setEncumbranceValues(encumbrance, totalWeight);
   }
 }
