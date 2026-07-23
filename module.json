@@ -2,7 +2,7 @@
   "id": "the-horses-encumbrance-controls",
   "title": "The Horse's Encumbrance Controls",
   "description": "A module that provides enhanced encumbrance controls with a customizable carry weight multiplier, effects, and speed reductions.",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "authors": [
     {
       "name": "The Horse"
@@ -27,5 +27,5 @@
   ],
   "url": "https://github.com/ryanw341/The-Horses-Encumbrance-Controls",
   "manifest": "https://raw.githubusercontent.com/ryanw341/The-Horses-Encumbrance-Controls/main/module.json",
-  "download": "https://github.com/ryanw341/The-Horses-Encumbrance-Controls/archive/refs/tags/Horses-Encumbrance-v1.0.8.zip"
+  "download": "https://github.com/ryanw341/The-Horses-Encumbrance-Controls/archive/refs/tags/Horses-Encumbrance-v1.0.9.zip"
 }
