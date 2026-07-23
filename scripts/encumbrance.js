@@ -426,19 +426,43 @@ export class EncumbranceManager {
    * Set encumbrance value and percentage on the actor's encumbrance object
    * @param {Object} encumbrance - The actor's encumbrance object
    * @param {Number} totalWeight - The computed total weight
+   * @param {Number} [maxOverride] - Optional carrying capacity to display as the
+   *   total carry weight (max). When provided and valid, it overrides the
+   *   system-computed max so the module's Carry Weight Multiplier is reflected
+   *   on the character sheet.
    */
-  setEncumbranceValues(encumbrance, totalWeight) {
+  setEncumbranceValues(encumbrance, totalWeight, maxOverride) {
     if (!encumbrance) {
       return;
     }
     
     // Ensure totalWeight is finite before assigning (defensive programming)
-    encumbrance.value = Number.isFinite(totalWeight) ? totalWeight : 0;
+    const value = Number.isFinite(totalWeight) ? totalWeight : 0;
+    encumbrance.value = value;
+    
+    // Override the displayed carrying capacity when a valid override is supplied.
+    // This is what makes the Carry Weight Multiplier visible on the sheet.
+    if (Number.isFinite(maxOverride) && maxOverride > 0) {
+      encumbrance.max = maxOverride;
+      
+      // Keep the tier thresholds and progress-bar stops consistent with the
+      // module's tiers (1/3, 2/3, full) when the system exposes them.
+      if (encumbrance.thresholds && typeof encumbrance.thresholds === 'object') {
+        encumbrance.thresholds.encumbered = maxOverride * (1 / 3);
+        encumbrance.thresholds.heavilyEncumbered = maxOverride * (2 / 3);
+        encumbrance.thresholds.maximum = maxOverride;
+      }
+      if (encumbrance.stops && typeof encumbrance.stops === 'object') {
+        encumbrance.stops.encumbered = Math.round((1 / 3) * 100);
+        encumbrance.stops.heavilyEncumbered = Math.round((2 / 3) * 100);
+      }
+      encumbrance.encumbered = value > maxOverride * (1 / 3);
+    }
     
     // Also update pct when max is available and finite
     const max = this.getNumeric(encumbrance.max, 0);
-    if (Number.isFinite(max) && max > 0 && Number.isFinite(totalWeight)) {
-      encumbrance.pct = Math.round((totalWeight / max) * 100);
+    if (Number.isFinite(max) && max > 0 && Number.isFinite(value)) {
+      encumbrance.pct = Math.min(100, Math.max(0, Math.round((value / max) * 100)));
     }
   }
 
@@ -451,7 +475,7 @@ export class EncumbranceManager {
    * @param {Object} encumbrance - The actor's encumbrance object
    * @param {Number} totalWeight - The computed total weight
    */
-  setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight) {
+  setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight, maxOverride) {
     if (!encumbrance || !actor) {
       return;
     }
@@ -482,7 +506,7 @@ export class EncumbranceManager {
     };
     
     // Set immediately
-    this.setEncumbranceValues(encumbrance, totalWeight);
+    this.setEncumbranceValues(encumbrance, totalWeight, maxOverride);
     
     // Store references to pending operations
     const pending = { cancelled: false };
@@ -495,7 +519,7 @@ export class EncumbranceManager {
         if (!pending.cancelled) {
           const freshEncumbrance = getFreshEncumbrance();
           if (freshEncumbrance) {
-            this.setEncumbranceValues(freshEncumbrance, totalWeight);
+            this.setEncumbranceValues(freshEncumbrance, totalWeight, maxOverride);
           }
         }
       });
@@ -507,7 +531,7 @@ export class EncumbranceManager {
         if (!pending.cancelled) {
           const freshEncumbrance = getFreshEncumbrance();
           if (freshEncumbrance) {
-            this.setEncumbranceValues(freshEncumbrance, totalWeight);
+            this.setEncumbranceValues(freshEncumbrance, totalWeight, maxOverride);
           }
         }
       });
@@ -518,7 +542,7 @@ export class EncumbranceManager {
       if (!pending.cancelled) {
         const freshEncumbrance = getFreshEncumbrance();
         if (freshEncumbrance) {
-          this.setEncumbranceValues(freshEncumbrance, totalWeight);
+          this.setEncumbranceValues(freshEncumbrance, totalWeight, maxOverride);
         }
       }
     }, 0);
@@ -528,7 +552,7 @@ export class EncumbranceManager {
       if (!pending.cancelled) {
         const freshEncumbrance = getFreshEncumbrance();
         if (freshEncumbrance) {
-          this.setEncumbranceValues(freshEncumbrance, totalWeight);
+          this.setEncumbranceValues(freshEncumbrance, totalWeight, maxOverride);
         }
       }
       // Always clean up the Map entry, even if cancelled
@@ -537,8 +561,12 @@ export class EncumbranceManager {
   }
 
   /**
-   * Patch the system encumbrance value in-memory if it's NaN
-   * This ensures the character sheet displays a number instead of NaN
+   * Patch the system encumbrance values in-memory on every sheet render.
+   *
+   * The D&D5e system recomputes `encumbrance.max` from its own configuration
+   * during derived-data preparation, so we must reassert the module's carrying
+   * capacity (Strength × Carry Weight Multiplier) here for it to appear on the
+   * sheet. We also recompute the displayed weight when the system value is NaN.
    */
   patchSystemEncumbrance(actor) {
     const encumbrance = actor.system?.attributes?.encumbrance;
@@ -546,19 +574,20 @@ export class EncumbranceManager {
       return;
     }
 
-    // Check if the system value is NaN or not a finite number
-    const systemValue = encumbrance.value;
-    if (systemValue !== undefined && systemValue !== null && Number.isFinite(Number(systemValue))) {
-      // System value is valid, no need to patch
-      return;
-    }
-    
-    // System value is NaN, undefined, null, or not finite - patch it
     const { trackCurrency } = this.getSystemEncumbranceSettings();
-    const computedWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
-    
-    // Use the helper method to set values
-    this.setEncumbranceValues(encumbrance, computedWeight);
+    const carryingCapacity = this.getCarryingCapacity(actor);
+
+    // Determine the weight to display. Keep the system value when it is a valid
+    // finite number; otherwise fall back to a manual computation to avoid NaN.
+    const systemValue = encumbrance.value;
+    const systemValueIsValid = systemValue !== undefined && systemValue !== null && Number.isFinite(Number(systemValue));
+    const weight = systemValueIsValid
+      ? Number(systemValue)
+      : this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
+
+    // Always reassert the carrying capacity so the Carry Weight Multiplier is
+    // reflected as the total carry weight on the sheet.
+    this.setEncumbranceValues(encumbrance, weight, carryingCapacity);
   }
 
   /**
@@ -574,10 +603,11 @@ export class EncumbranceManager {
     
     // Always compute and set the system encumbrance value to eliminate transient NaN
     const totalWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight: trackCurrency });
+    const carryingCapacity = this.getCarryingCapacity(actor);
     const encumbrance = actor.system?.attributes?.encumbrance;
     
     // Set encumbrance values before applying effects
-    this.setEncumbranceValues(encumbrance, totalWeight);
+    this.setEncumbranceValues(encumbrance, totalWeight, carryingCapacity);
     
     // If the system setting cannot be read, fall back to module behavior
     const shouldSkipEncumbrance = tracking === undefined ? false : this.isEncumbranceDisabled(tracking);
@@ -585,7 +615,7 @@ export class EncumbranceManager {
     if (shouldSkipEncumbrance) {
       await this.removeEncumbranceEffects(actor);
       // Use delayed reasserts to override late system NaN
-      this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight);
+      this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight, carryingCapacity);
       return;
     }
     
@@ -595,7 +625,7 @@ export class EncumbranceManager {
       // Remove any existing encumbrance effects if effects are disabled
       await this.removeEncumbranceEffects(actor);
       // Use delayed reasserts to override late system NaN
-      this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight);
+      this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight, carryingCapacity);
       return;
     }
     
@@ -608,6 +638,6 @@ export class EncumbranceManager {
     // Reassert encumbrance value and pct after applying effects
     // This prevents the D&D5e system from overwriting with NaN during tier transitions
     // Use multiple delayed reasserts to ensure our value persists through all system recalculations
-    this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight);
+    this.setEncumbranceValuesWithDelayedReasserts(actor, encumbrance, totalWeight, carryingCapacity);
   }
 }
