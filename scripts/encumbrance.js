@@ -25,9 +25,12 @@ export class EncumbranceManager {
    */
   applyCurrencyWeightConfig() {
     try {
-      const currencyPerWeight = Math.max(this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50), 1);
+      const currencyPerWeight = this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50);
       if (CONFIG?.DND5E?.encumbrance) {
-        CONFIG.DND5E.encumbrance.currencyPerWeight = currencyPerWeight;
+        // A value of 0 (or less) means currency is completely weightless. Since
+        // the system divides coin count by this value, use Infinity so coins add
+        // no weight; otherwise clamp to a minimum of 1 to avoid divide-by-zero.
+        CONFIG.DND5E.encumbrance.currencyPerWeight = currencyPerWeight <= 0 ? Infinity : currencyPerWeight;
       }
     } catch (err) {
       console.warn(`${this.MODULE_ID} | Unable to apply currency weight configuration.`, err);
@@ -251,13 +254,24 @@ export class EncumbranceManager {
   }
   
   /**
-   * Get the encumbrance tier multipliers from settings
+   * Get the total carrying capacity (Strength × carry weight multiplier)
    */
-  getTierMultipliers() {
+  getCarryingCapacity(actor) {
+    const strength = actor.system?.abilities?.str?.value || 10;
+    const multiplier = this.getNumeric(game.settings.get(this.MODULE_ID, 'carryWeightMultiplier'), 15);
+    return strength * multiplier;
+  }
+  
+  /**
+   * Get the encumbrance tier thresholds as fractions of total carrying capacity
+   * Tier 1 = 1/3, Tier 2 = 2/3, Tier 3 = full carrying capacity
+   */
+  getTierThresholds(actor) {
+    const carryingCapacity = this.getCarryingCapacity(actor);
     return {
-      tier1: game.settings.get(this.MODULE_ID, 'tier1Multiplier'),
-      tier2: game.settings.get(this.MODULE_ID, 'tier2Multiplier'),
-      tier3: game.settings.get(this.MODULE_ID, 'tier3Multiplier')
+      tier1: carryingCapacity * (1 / 3),
+      tier2: carryingCapacity * (2 / 3),
+      tier3: carryingCapacity
     };
   }
   
@@ -286,7 +300,11 @@ export class EncumbranceManager {
    * Sums all present currency keys to support renamed/disabled currencies
    */
   calculateCurrencyWeight(actor) {
-    const currencyPerWeight = Math.max(this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50), 1);
+    const currencyPerWeight = this.getNumeric(game.settings.get(this.MODULE_ID, 'currencyPerWeight'), 50);
+    // A value of 0 (or less) means currency is completely weightless.
+    if (currencyPerWeight <= 0) {
+      return 0;
+    }
     const currency = actor.system?.currency || {};
     
     // Sum all present currency keys, not just the standard five
@@ -304,19 +322,14 @@ export class EncumbranceManager {
    * Determine which encumbrance tier the actor is in
    */
   getEncumbranceTier(actor, { trackCurrencyWeight = true } = {}) {
-    const strength = actor.system?.abilities?.str?.value || 10;
     const totalWeight = this.calculateTotalWeight(actor, { trackCurrencyWeight });
-    const multipliers = this.getTierMultipliers();
+    const thresholds = this.getTierThresholds(actor);
     
-    const tier1Threshold = strength * multipliers.tier1;
-    const tier2Threshold = strength * multipliers.tier2;
-    const tier3Threshold = strength * multipliers.tier3;
-    
-    if (totalWeight > tier3Threshold) {
+    if (totalWeight > thresholds.tier3) {
       return 3;
-    } else if (totalWeight > tier2Threshold) {
+    } else if (totalWeight > thresholds.tier2) {
       return 2;
-    } else if (totalWeight > tier1Threshold) {
+    } else if (totalWeight > thresholds.tier1) {
       return 1;
     } else {
       return 0;
