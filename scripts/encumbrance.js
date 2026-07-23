@@ -325,8 +325,10 @@ export class EncumbranceManager {
   
   /**
    * Create an encumbrance effect for the given tier
+   * @param {Number} tier - The encumbrance tier
+   * @param {Actor} actor - The actor the effect will be applied to (used for origin)
    */
-  createEncumbranceEffect(tier) {
+  createEncumbranceEffect(tier, actor) {
     const effectName = this.EFFECT_NAMES[`tier${tier}`];
     const speedReduction = game.settings.get(this.MODULE_ID, `tier${tier}SpeedReduction`);
     const speedSetTo = game.settings.get(this.MODULE_ID, `tier${tier}SpeedSetTo`);
@@ -348,7 +350,7 @@ export class EncumbranceManager {
     return {
       name: effectName,
       icon: 'icons/svg/anchor.svg',
-      origin: `Actor.${this.MODULE_ID}`,
+      origin: actor?.uuid,
       disabled: false,
       duration: {},
       flags: {
@@ -402,7 +404,7 @@ export class EncumbranceManager {
     
     // Apply new effect if needed
     if (tier > 0) {
-      const effect = this.createEncumbranceEffect(tier);
+      const effect = this.createEncumbranceEffect(tier, actor);
       await actor.createEmbeddedDocuments('ActiveEffect', [effect]);
     }
   }
