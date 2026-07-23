@@ -2,15 +2,15 @@
   "id": "the-horses-encumbrance-controls",
   "title": "The Horse's Encumbrance Controls",
   "description": "A module that provides enhanced encumbrance controls with customizable tier multipliers, effects, and speed reductions.",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "authors": [
     {
       "name": "The Horse"
     }
   ],
   "compatibility": {
-    "minimum": "12",
-    "verified": "13"
+    "minimum": "13",
+    "verified": "14"
   },
   "esmodules": [
     "scripts/main.js"
