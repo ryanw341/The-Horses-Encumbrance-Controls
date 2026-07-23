@@ -1,14 +1,15 @@
 # The Horse's Encumbrance Controls
 
-A Foundry VTT module that provides enhanced encumbrance controls with customizable tier multipliers, automatic effects, and flexible speed reductions.
+A Foundry VTT module that provides enhanced encumbrance controls with a customizable carry weight multiplier, automatic effects, and flexible speed reductions.
 
 ## Features
 
-### 1. Customizable Encumbrance Tier Multipliers
-Modify the default encumbrance calculations by changing the multipliers for each tier:
-- **Tier 1 (Encumbered)**: Default Strength × 5
-- **Tier 2 (Heavily Encumbered)**: Default Strength × 10
-- **Tier 3 (Exceeding Carrying Capacity)**: Default Strength × 15
+### 1. Customizable Carry Weight Multiplier
+Modify the total carrying capacity by changing a single multiplier for Strength. Each encumbrance tier is calculated as a fraction of this total carrying capacity:
+- **Carry Weight Multiplier**: Default Strength × 15 (total carrying capacity)
+- **Tier 1 (Encumbered)**: 1/3 of total carrying capacity
+- **Tier 2 (Heavily Encumbered)**: 2/3 of total carrying capacity
+- **Tier 3 (Exceeding Carrying Capacity)**: Full carrying capacity
 
 ### 2. Automatic Encumbrance Effects
 Toggle the automatic application of custom temporary effects based on encumbrance tier:
@@ -29,6 +30,7 @@ Configure speed modifications for each encumbrance tier:
 ### 4. Currency Weight Calculation
 Configure how many coins equal one unit of weight:
 - Default: 50 coins = 1 lb
+- Set to **0** to make currency completely weightless
 - Automatically calculates total currency weight from all coin types (cp, sp, ep, gp, pp)
 - Respects the D&D5e system toggles for tracking currency weight and encumbrance
 
@@ -51,9 +53,7 @@ Configure how many coins equal one unit of weight:
 All settings are found in the module settings menu (Configure Settings → Module Settings):
 
 ### Encumbrance Thresholds
-- **Tier 1 Multiplier**: Weight threshold for "Encumbered" status
-- **Tier 2 Multiplier**: Weight threshold for "Heavily Encumbered" status
-- **Tier 3 Multiplier**: Weight threshold for "Exceeding Carrying Capacity" status
+- **Carry Weight Multiplier**: Strength multiplier for total carrying capacity. Tiers are fractions of this total (Tier 1 = 1/3, Tier 2 = 2/3, Tier 3 = full)
 
 ### Effect Control
 - **Enable Encumbrance Effects**: Master toggle to enable/disable automatic effect application

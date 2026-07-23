@@ -1,30 +1,10 @@
 export function registerSettings() {
   const MODULE_ID = 'the-horses-encumbrance-controls';
   
-  // Tier Multipliers
-  game.settings.register(MODULE_ID, 'tier1Multiplier', {
-    name: 'Tier 1 Multiplier (Encumbered)',
-    hint: 'Multiplier for Strength to calculate the first encumbrance tier (default: 5)',
-    scope: 'world',
-    config: true,
-    type: Number,
-    default: 5,
-    onChange: () => window.location.reload()
-  });
-  
-  game.settings.register(MODULE_ID, 'tier2Multiplier', {
-    name: 'Tier 2 Multiplier (Heavily Encumbered)',
-    hint: 'Multiplier for Strength to calculate the second encumbrance tier (default: 10)',
-    scope: 'world',
-    config: true,
-    type: Number,
-    default: 10,
-    onChange: () => window.location.reload()
-  });
-  
-  game.settings.register(MODULE_ID, 'tier3Multiplier', {
-    name: 'Tier 3 Multiplier (Exceeding Carrying Capacity)',
-    hint: 'Multiplier for Strength to calculate the third encumbrance tier (default: 15)',
+  // Carry Weight Multiplier
+  game.settings.register(MODULE_ID, 'carryWeightMultiplier', {
+    name: 'Carry Weight Multiplier',
+    hint: 'Multiplier for Strength to calculate total carrying capacity. Each encumbrance tier is a fraction of this total (default: 15)',
     scope: 'world',
     config: true,
     type: Number,
@@ -103,7 +83,7 @@ export function registerSettings() {
   // Currency per Weight
   game.settings.register(MODULE_ID, 'currencyPerWeight', {
     name: 'Currency per Weight',
-    hint: 'Number of coins that equal 1 pound of weight (default: 50)',
+    hint: 'Number of coins that equal 1 pound of weight. Set to 0 to make currency completely weightless (default: 50)',
     scope: 'world',
     config: true,
     type: Number,

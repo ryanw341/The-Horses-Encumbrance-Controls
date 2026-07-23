@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased] - Encumbrance Tier Rework
+
+### Changed
+- Replaced the three separate tier multipliers with a single **Carry Weight Multiplier** that sets the global carrying capacity (Strength × multiplier, default 15)
+  - Encumbrance tiers are now calculated as fractions of total carrying capacity (Tier 1 = 1/3, Tier 2 = 2/3, Tier 3 = full)
+- Setting **Currency per Weight** to `0` now makes currency completely weightless
+
 ## [1.0.3] - Bug Fix Release
 
 ### Fixed
