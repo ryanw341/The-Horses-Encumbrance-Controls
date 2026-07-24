@@ -7,6 +7,10 @@
   - Encumbrance tiers are now calculated as fractions of total carrying capacity (Tier 1 = 1/3, Tier 2 = 2/3, Tier 3 = full)
 - Setting **Currency per Weight** to `0` now makes currency completely weightless
 
+### Fixed
+- The **Carry Weight Multiplier** now updates the total carry weight (`max`) shown on character sheets. Previously it only affected the module's internal tier thresholds, so the displayed capacity never changed
+  - The carrying capacity is reasserted on every sheet render (and after actor/item updates), and the encumbrance bar's percentage and tier markers now reflect the multiplier
+
 ## [1.0.3] - Bug Fix Release
 
 ### Fixed
